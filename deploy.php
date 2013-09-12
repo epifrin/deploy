@@ -39,6 +39,11 @@ if(!$arr_ini){
 }
 //p($arr_ini);
 
+if(!empty($arr_ini['security']['allow_ip']) && strpos($arr_ini['security']['allow_ip'], $_SERVER['REMOTE_ADDR']) === false ){
+    echo 'Permission denied';
+    exit();
+}
+
 $conn_id = false;
 ftp_conn($arr_ini);
 
@@ -167,6 +172,7 @@ if($conn_id) ftp_close($conn_id);
         <th class="light_gray">Date</th>
         <th>From FTP</th>
         <th>To FTP</th>
+        <th>From FTP</th>
     </tr>
     <?php 
     if(!empty($arr_local_files)){
@@ -185,6 +191,10 @@ if($conn_id) ftp_close($conn_id);
             </td>
             <td><?php if(!$arr_f['equal'] && $conn_id){ ?> 
                 <input type="button" value="Upload" onclick="window.location.href='?upload=<?=urlencode($file);?>'"> 
+                <?php } ?>
+            </td>
+            <td><?php if(!$arr_f['equal'] && $conn_id){ ?> 
+                <input type="button" value="Delete" onclick="window.location.href='?delete=<?=urlencode($file);?>'"> 
                 <?php } ?>
             </td>
         </tr>
@@ -303,7 +313,7 @@ function add_file_to_arr($arr_local_files, $dir, $file){
 function ftp_conn($arr_ini){
     global $conn_id;
     if(!empty($arr_ini['ftp']['ftp_host']) && !empty($arr_ini['ftp']['ftp_user']) && !empty($arr_ini['ftp']['ftp_pass'])){
-    $conn_id = ftp_connect($arr_ini['ftp']['ftp_host']);
+    $conn_id = ftp_connect($arr_ini['ftp']['ftp_host'], $arr_ini['ftp']['ftp_port']);
     if($conn_id) $login_result = ftp_login($conn_id, $arr_ini['ftp']['ftp_user'], $arr_ini['ftp']['ftp_pass']);
         if ((!$conn_id) || (!$login_result)) {
             echo 'Unable to connect to FTP-server!<br>';
