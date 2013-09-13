@@ -17,6 +17,6 @@ Simple deploys web-sites from local computer to ftp server
 
 2. Создать ini-файл по образцу deploy_example.ini для своего проекта. Если у вас есть несколько проектов или ваш проект очень большой, создайте несколько ini-файлов.
 
-3. В deploy.ini заменить deploy_example.ini заменить на ваш ini-файл. Если их несколько, то добавить.
+3. В deploy.ini заменить deploy_example.ini на ваш ini-файл. Если их несколько, то добавить.
 
 4. Открыть в браузере deploy.php
