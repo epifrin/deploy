@@ -91,6 +91,15 @@ if($conn_id){
             }
         }
     }
+    
+    // delete from ftp
+    if(!empty($_GET['delete'])){
+        if(ftp_size($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete'])) > -1){
+            ftp_delete($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete']));
+            header('Location: deploy.php');
+            exit();
+        }
+    }
 }
 
 $arr_local_files = get_arr_local_files($arr_ini); // get array of files
@@ -101,7 +110,7 @@ if($conn_id){
     foreach($arr_local_files AS $file=>$val){
         $ftp_file = $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/', $file);
         $ftp_fsize = ftp_size($conn_id, $ftp_file);
-        if($ftp_fsize > 0){
+        if($ftp_fsize > -1){
             $arr_local_files[$file]['ftp_fsize'] = $ftp_fsize;
             $arr_local_files[$file]['ftp_fdate'] = ftp_mdtm($conn_id, $ftp_file);
             if($val['fsize'] == $ftp_fsize) $arr_local_files[$file]['equal'] = true;
@@ -117,6 +126,7 @@ if($conn_id) ftp_close($conn_id);
 ?>
 <html>
 <head>
+    <title>Deploy</title>
 </head>
 <body>
 <style>
@@ -160,7 +170,7 @@ if($conn_id) ftp_close($conn_id);
         <th colspan="4">Local computer</th>
         <th></th>
         <th colspan="2" class="light_gray">FTP Server</th>
-        <th colspan="2">Actions</th>
+        <th colspan="3">Actions</th>
     </tr>
     <tr>
         <th></th>
@@ -193,8 +203,8 @@ if($conn_id) ftp_close($conn_id);
                 <input type="button" value="Upload" onclick="window.location.href='?upload=<?=urlencode($file);?>'"> 
                 <?php } ?>
             </td>
-            <td><?php if(!$arr_f['equal'] && $conn_id){ ?> 
-                <input type="button" value="Delete" onclick="window.location.href='?delete=<?=urlencode($file);?>'"> 
+            <td><?php if($conn_id){ ?> 
+                <input type="button" value="Delete" onclick="if(confirm('Are you sure?')) window.location.href='?delete=<?=urlencode($file);?>'"> 
                 <?php } ?>
             </td>
         </tr>
