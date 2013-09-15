@@ -4,6 +4,7 @@
 * 
 */
 ini_set("max_execution_time","120");
+session_start();     
 
 $main_ini_file = 'deploy.ini'; // site or project ini file
 
@@ -16,17 +17,18 @@ if(!empty($arr_main_ini['sites'])){
 }
 
 if(!empty($_GET['ini'])){
+    $_SESSION['arr_local_files'] = '';
     if(!empty($arr_ini_list[$_GET['ini']])){ 
         $ini_file = $arr_ini_list[$_GET['ini']];
-        setcookie('ini_name', $_GET['ini'], time()+2592000, '/');
+        setcookie('deploy_ini_name', $_GET['ini'], time()+2592000, '/');
         header('Location: deploy.php');
         exit();
     }
-}elseif(!empty($_COOKIE['ini_name'])){
-    if(!empty($arr_ini_list[$_COOKIE['ini_name']])){  
-        $ini_file = $arr_ini_list[$_COOKIE['ini_name']];
+}elseif(!empty($_COOKIE['deploy_ini_name'])){
+    if(!empty($arr_ini_list[$_COOKIE['deploy_ini_name']])){  
+        $ini_file = $arr_ini_list[$_COOKIE['deploy_ini_name']];
     }else{
-        setcookie('ini_name', '', time()-1, '/');
+        setcookie('deploy_ini_name', '', time()-1, '/');
     }
 }
 
@@ -47,7 +49,26 @@ if(!empty($arr_ini['security']['allow_ip']) && strpos($arr_ini['security']['allo
 $conn_id = false;
 ftp_conn($arr_ini);
 
+// checkbox "Show only not equal files"
+if(isset($_GET['show_only_not_equal'])){
+    if(!empty($_GET['show_only_not_equal'])){
+        setcookie('deploy_show_only_not_equal', 1, time()+2592000, '/');
+    }else{
+        setcookie('deploy_show_only_not_equal', '', time()-1, '/');
+    }
+    header('Location: deploy.php');
+    exit();
+}
+$show_only_no_equal = false;
+if(!empty($_COOKIE['deploy_show_only_not_equal'])){
+    $show_only_no_equal = true; 
+}
 
+if(!empty($_GET['rescan'])){
+    $_SESSION['arr_local_files'] = '';
+    header('Location: deploy.php');
+    exit();
+}
 
 
 if($conn_id){
@@ -57,12 +78,22 @@ if($conn_id){
             foreach($_POST['files'] AS $file){
                 if(is_file($arr_ini['deployment']['local_site_dir'].$file)){
                     if($_POST['atype'] == 'download'){
-                        ftp_get($conn_id,$arr_ini['deployment']['local_site_dir'].$file, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$file), FTP_BINARY);
+                        if( ftp_get($conn_id,$arr_ini['deployment']['local_site_dir'].$file, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$file), FTP_BINARY)){
+                            to_log('File <b>'.$file.'</b> was successfully downloaded');    
+                        }else{
+                            to_log('Unable to download file <b>'.$file.'</b>');
+                        }
+                        
                     }elseif($_POST['atype'] == 'upload'){
-                        ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$file), $arr_ini['deployment']['local_site_dir'].$file, FTP_BINARY);
+                        if( ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$file), $arr_ini['deployment']['local_site_dir'].$file, FTP_BINARY)) {
+                            to_log('File <b>'.$file.'</b> was successfully uploaded');
+                        }else{
+                            to_log('Unable to upload file <b>'.$file.'</b>');
+                        }
                     }
                 }
             }
+            $_SESSION['arr_local_files'] = '';
             header('Location: deploy.php');
             exit();
         }
@@ -72,10 +103,12 @@ if($conn_id){
     if(!empty($_GET['download'])){
         if(is_file($arr_ini['deployment']['local_site_dir'].$_GET['download'])){
             if( ftp_get($conn_id,$arr_ini['deployment']['local_site_dir'].$_GET['download'],$arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['download']),FTP_BINARY)){
+                to_log('File <b>'.$_GET['download'].'</b> was successfully downloaded');
+                $_SESSION['arr_local_files'] = '';
                 header('Location: deploy.php');
                 exit(); 
             }else{
-                echo 'Failed to download the file '.$_GET['download'];
+                to_log('Failed to download the file <b>'.$_GET['download'].'</b>');
             }
         }
     }
@@ -84,10 +117,12 @@ if($conn_id){
     if(!empty($_GET['upload'])){
         if(is_file($arr_ini['deployment']['local_site_dir'].$_GET['upload'])){
             if( ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['upload']), $arr_ini['deployment']['local_site_dir'].$_GET['upload'], FTP_BINARY) ){
+                to_log('File <b>'.$_GET['upload'].'</b> was successfully uploaded');
+                $_SESSION['arr_local_files'] = '';
                 header('Location: deploy.php');
                 exit(); 
             }else{
-                echo 'Failed to upload the file '.$_GET['upload'];
+                to_log('Failed to upload the file <b>'.$_GET['upload'].'</b>', true);
             }
         }
     }
@@ -95,9 +130,15 @@ if($conn_id){
     // delete from ftp
     if(!empty($_GET['delete'])){
         if(ftp_size($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete'])) > -1){
-            ftp_delete($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete']));
-            header('Location: deploy.php');
-            exit();
+            if( ftp_delete($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete'])) ){
+                to_log('File <b>'.$_GET['delete'].'</b> was successfully deleted');
+                $_SESSION['arr_local_files'] = '';
+                header('Location: deploy.php');
+                exit();    
+            }else{
+                to_log('Failed to delete the file <b>'.$_GET['delete'].'</b>', true);
+            }
+            
         }
     }
 }
@@ -106,15 +147,17 @@ $arr_local_files = get_arr_local_files($arr_ini); // get array of files
 
     
 if($conn_id){
-    
-    foreach($arr_local_files AS $file=>$val){
-        $ftp_file = $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/', $file);
-        $ftp_fsize = ftp_size($conn_id, $ftp_file);
-        if($ftp_fsize > -1){
-            $arr_local_files[$file]['ftp_fsize'] = $ftp_fsize;
-            $arr_local_files[$file]['ftp_fdate'] = ftp_mdtm($conn_id, $ftp_file);
-            if($val['fsize'] == $ftp_fsize) $arr_local_files[$file]['equal'] = true;
+    if(empty($_SESSION['arr_local_files']) || !is_array($_SESSION['arr_local_files'])){
+        foreach($arr_local_files AS $file=>$val){
+            $ftp_file = $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/', $file);
+            $ftp_fsize = ftp_size($conn_id, $ftp_file);
+            if($ftp_fsize > -1){
+                $arr_local_files[$file]['ftp_fsize'] = $ftp_fsize;
+                $arr_local_files[$file]['ftp_fdate'] = ftp_mdtm($conn_id, $ftp_file);
+                if($val['fsize'] == $ftp_fsize) $arr_local_files[$file]['equal'] = true;
+            }
         }
+        $_SESSION['arr_local_files'] = $arr_local_files;
     }
 }
 
@@ -131,7 +174,16 @@ if($conn_id) ftp_close($conn_id);
 <body>
 <style>
     body { 
+        font-family: Verdana, Arial;
+        font-size: 11px;
         color: #333;
+    }
+    td {
+        font-size: 12px;
+    }
+    .btn {
+        font-family: Verdana, Arial;
+        font-size: 10px;
     }
     .t_filelist {
         border-collapse: collapse;
@@ -140,14 +192,23 @@ if($conn_id) ftp_close($conn_id);
     .t_filelist th {
         border: 1px solid #CCC;
         color:#555;
+        font-size: 11px;
     }
     .t_filelist td {
         border: 1px solid #CCC;
+        font-size: 11px;
+    }
+    .tr_bg_red {
+        background-color: #FFDDDE;
     }
     .light_gray {
         background-color:#EFEFEF;
     }
-    .red {color:red;}
+    .red, .err {color:red;}
+    .tab_log {
+        font-family: monospace;
+        font-size: 12px;
+    }
 </style>
 <table>
 <tr>
@@ -159,65 +220,73 @@ if($conn_id) ftp_close($conn_id);
         <?php } ?>
         </select>
     </form>
+    <label><input type="checkbox" id="show_only_not_equal" name="show_only_not_equal" value="1" <?php if($show_only_no_equal){ ?> checked="checked"<?php } ?> onchange="change_show_only_not_equal();"> Show only not equal files</label>
+    <input type="button" value="rescan" onclick="btn_rescan();">
     </td>
+    <td></td>
 </tr>
 <tr>
-    <td>
-    <form action="" name="form_file_list" method="post">
-    <input type="hidden" name="atype" value="download">
-    <table border="1" cellpadding="2" cellspacing="2" class="t_filelist">
-    <tr>
-        <th colspan="4">Local computer</th>
-        <th></th>
-        <th colspan="2" class="light_gray">FTP Server</th>
-        <th colspan="3">Actions</th>
-    </tr>
-    <tr>
-        <th></th>
-        <th>File</th>
-        <th>Date</th>
-        <th>Size, byte</th>
-        <th></th>
-        <th class="light_gray">Size, byte</th>
-        <th class="light_gray">Date</th>
-        <th>From FTP</th>
-        <th>To FTP</th>
-        <th>From FTP</th>
-    </tr>
-    <?php 
-    if(!empty($arr_local_files)){
-        foreach($arr_local_files AS $file=>$arr_f){ ?>
+    <td valign="top">
+        <form action="" name="form_file_list" method="post">
+        <input type="hidden" name="atype" value="download">
+        <table border="1" cellpadding="2" cellspacing="2" class="t_filelist">
         <tr>
-            <td><input type="checkbox" name="files[]" value="<?=$file;?>" <?php if(!$arr_f['equal']){ ?> checked="checked" <?php } ?> ></td>
-            <td><?=$file;?></td>
-            <td><?=date('H:i:s d.m.Y', $arr_f['fdate']);?></td>
-            <td align="right"><?=$arr_f['fsize'];?></td>
-            <td align="center"><?php if($arr_f['equal']){ echo '=';}else{echo '<span class="red">!=</span>';}  ?></td>
-            <td align="right" class="light_gray"><?=$arr_f['ftp_fsize'];?></td>
-            <td class="light_gray"><?php if(!empty($arr_f['ftp_fdate'])){ echo date('H:i:s d.m.Y', $arr_f['ftp_fdate']); }?></td>
-            <td><?php if(!$arr_f['equal'] && $arr_f['ftp_fsize'] > 0){ ?> 
-                <input type="button" value="Download" onclick="window.location.href='?download=<?=urlencode($file);?>'"> 
-                <?php } ?>
-            </td>
-            <td><?php if(!$arr_f['equal'] && $conn_id){ ?> 
-                <input type="button" value="Upload" onclick="window.location.href='?upload=<?=urlencode($file);?>'"> 
-                <?php } ?>
-            </td>
-            <td><?php if($conn_id){ ?> 
-                <input type="button" value="Delete" onclick="if(confirm('Are you sure?')) window.location.href='?delete=<?=urlencode($file);?>'"> 
-                <?php } ?>
-            </td>
+            <th colspan="4">Local computer</th>
+            <th></th>
+            <th colspan="2" class="light_gray">FTP Server</th>
+            <th colspan="3">Actions</th>
         </tr>
-    <?php }
-    }else{ ?>
-    <tr>
-        <td colspan="6">There is no local files</td>
-    </tr>    
-    <?php } 
-    ?>
-    </table>
-    <p><input type="button" value="Download all checked" onclick="btn_click('download');"> <input type="button" value="Upload all checked" onclick="btn_click('upload');"></p>
-    </form>
+        <tr>
+            <th></th>
+            <th>File</th>
+            <th>Date</th>
+            <th>Size, byte</th>
+            <th></th>
+            <th class="light_gray">Size, byte</th>
+            <th class="light_gray">Date</th>
+            <th>From FTP</th>
+            <th>To FTP</th>
+            <th>From FTP</th>
+        </tr>
+        <?php 
+        if(!empty($arr_local_files)){
+            foreach($arr_local_files AS $file=>$arr_f){ 
+            if(!$show_only_no_equal || ($show_only_no_equal && !$arr_f['equal'])){ ?>
+            <tr <?php if(!$arr_f['equal']){ ?>class="tr_bg_red" <?php } ?> >
+                <td><input type="checkbox" name="files[]" value="<?=$file;?>" <?php if(!$arr_f['equal']){ ?> checked="checked" <?php } ?> ></td>
+                <td><?=$file;?></td>
+                <td><?=date('H:i:s d.m.Y', $arr_f['fdate']);?></td>
+                <td align="right"><?=$arr_f['fsize'];?></td>
+                <td align="center"><?php if($arr_f['equal']){ echo '=';}else{echo '<span class="red">!=</span>';}  ?></td>
+                <td align="right" class="light_gray"><?=$arr_f['ftp_fsize'];?></td>
+                <td class="light_gray"><?php if(!empty($arr_f['ftp_fdate'])){ echo date('H:i:s d.m.Y', $arr_f['ftp_fdate']); }?></td>
+                <td><?php if(!$arr_f['equal'] && $arr_f['ftp_fsize'] > 0){ ?> 
+                    <input type="button" value="Download" class="btn" onclick="window.location.href='?download=<?=urlencode($file);?>'"> 
+                    <?php } ?>
+                </td>
+                <td><?php if(!$arr_f['equal'] && $conn_id){ ?> 
+                    <input type="button" value="Upload" class="btn" onclick="window.location.href='?upload=<?=urlencode($file);?>'"> 
+                    <?php } ?>
+                </td>
+                <td><?php if($conn_id){ ?> 
+                    <input type="button" value="Delete" class="btn" onclick="if(confirm('Are you sure?')) window.location.href='?delete=<?=urlencode($file);?>'"> 
+                    <?php } ?>
+                </td>
+            </tr>
+        <?php }}
+        }else{ ?>
+        <tr>
+            <td colspan="6">There is no local files</td>
+        </tr>    
+        <?php } 
+        ?>
+        </table>
+        <p><input type="button" value="Download all checked" class="btn" onclick="btn_click('download');"> 
+            <input type="button" value="Upload all checked" class="btn" onclick="btn_click('upload');"></p>
+        </form>
+    </td>
+    <td class="tab_log" valign="top">
+        <?php if(!empty($_SESSION['logs'])) echo $_SESSION['logs']; ?>
     </td>
 </tr>
 </table>
@@ -226,10 +295,21 @@ function btn_click(atype){
     document.form_file_list['atype'].value = atype;
     document.form_file_list.submit();
 }
+function change_show_only_not_equal(){
+    var el_show_only = document.getElementById('show_only_not_equal');
+    if(el_show_only.checked){
+        window.location.href = 'deploy.php?show_only_not_equal=1';
+    }else{
+        window.location.href = 'deploy.php?show_only_not_equal=0';
+    }
+}
+function btn_rescan(){
+    window.location.href = 'deploy.php?rescan=1';
+}
 </script>
 </body>
 </html>
-<?php
+<?php       
 
 /**
 * получение массива файлов, по которым будет происходить проверка
@@ -238,6 +318,8 @@ function btn_click(atype){
 */
 function get_arr_local_files($arr_ini){
     $arr_local_files = array();
+    
+    if(!empty($_SESSION['arr_local_files']) && is_array($_SESSION['arr_local_files'])) return $_SESSION['arr_local_files'];
     // include files
     $arr_inc_files = explode("\n", $arr_ini['deployment']['include_files']);
     $local_chdir = $arr_ini['deployment']['local_site_dir'];
@@ -326,13 +408,19 @@ function ftp_conn($arr_ini){
     $conn_id = ftp_connect($arr_ini['ftp']['ftp_host'], $arr_ini['ftp']['ftp_port']);
     if($conn_id) $login_result = ftp_login($conn_id, $arr_ini['ftp']['ftp_user'], $arr_ini['ftp']['ftp_pass']);
         if ((!$conn_id) || (!$login_result)) {
-            echo 'Unable to connect to FTP-server!<br>';
-            echo 'Trying to connect to server '.$arr_ini['ftp']['ftp_host'].' was produced under the name of '.$arr_ini['ftp']['ftp_user'];
-            exit;
+            to_log('Unable to connect to FTP-server!', true);
+            to_log('Trying to connect to server <b>'.$arr_ini['ftp']['ftp_host'].'</b> was produced under the name of '.$arr_ini['ftp']['ftp_user'].'</b>', true);
+
         } else {
-            echo 'The connection to the FTP server '.$arr_ini['ftp']['ftp_host'].' under the name of '.$arr_ini['ftp']['ftp_user'];
+            //to_log('The connection to the FTP server <b>'.$arr_ini['ftp']['ftp_host'].'</b> under the name of <b>'.$arr_ini['ftp']['ftp_user'].'</b>');
         }
     }
+}
+
+function to_log($str, $bool_err = false){
+    if(empty($_SESSION['logs'])) $_SESSION['logs'] = '';
+    $err_class = '';  if($bool_err) $err_class = ' class="err"';
+    $_SESSION['logs'] .= '<span'.$err_class.'>'.date('H:i:s').': '.$str.'<br></span>';
 }
 
 /**
