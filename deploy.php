@@ -70,6 +70,11 @@ if(!empty($_GET['rescan'])){
     exit();
 }
 
+if(!empty($_GET['clear_log'])){
+    $_SESSION['logs'] = '';
+    header('Location: deploy.php');
+    exit();
+}
 
 if($conn_id){
     // multiple download or upload
@@ -212,18 +217,25 @@ if($conn_id) ftp_close($conn_id);
 </style>
 <table>
 <tr>
-    <td>ini=<?=$ini_file?>
-    <form action="" name="form_change_ini">
-        <select name="ini" onchange="document.form_change_ini.submit();">
-        <?php foreach($arr_ini_list AS $site_name=>$ini_f){ ?>
-            <option value="<?=$site_name?>" <?php if($ini_f == $ini_file){ ?>selected="selected"<?php } ?>><?=$site_name?></option>
-        <?php } ?>
-        </select>
-    </form>
-    <label><input type="checkbox" id="show_only_not_equal" name="show_only_not_equal" value="1" <?php if($show_only_no_equal){ ?> checked="checked"<?php } ?> onchange="change_show_only_not_equal();"> Show only not equal files</label>
-    <input type="button" value="rescan" onclick="btn_rescan();">
+    <td>
+        <table width="100%">
+        <tr>
+            <td>ini=<?=$ini_file?></td>
+            <td align="right"><form action="" name="form_change_ini" style="margin: 0;">
+                <select name="ini" onchange="document.form_change_ini.submit();">
+                <?php foreach($arr_ini_list AS $site_name=>$ini_f){ ?>
+                    <option value="<?=$site_name?>" <?php if($ini_f == $ini_file){ ?>selected="selected"<?php } ?>><?=$site_name?></option>
+                <?php } ?>
+                </select>
+            </form></td>
+        </tr>
+        <tr>
+            <td><input type="button" value="rescan" onclick="btn_rescan();"></td>
+            <td align="right"><label><input type="checkbox" id="show_only_not_equal" name="show_only_not_equal" value="1" <?php if($show_only_no_equal){ ?> checked="checked"<?php } ?> onchange="change_show_only_not_equal();"> Show only not equal files</label></td>
+        </tr>
+        </table>
     </td>
-    <td></td>
+    <td valign="bottom"><input type="button" value="clear log" onclick="btn_clear_log();"></td>
 </tr>
 <tr>
     <td valign="top">
@@ -305,6 +317,9 @@ function change_show_only_not_equal(){
 }
 function btn_rescan(){
     window.location.href = 'deploy.php?rescan=1';
+}
+function btn_clear_log(){
+    window.location.href = 'deploy.php?clear_log=1';
 }
 </script>
 </body>
