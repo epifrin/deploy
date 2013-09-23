@@ -21,6 +21,7 @@ if(!empty($_GET['ini'])){
     if(!empty($arr_ini_list[$_GET['ini']])){ 
         $ini_file = $arr_ini_list[$_GET['ini']];
         setcookie('deploy_ini_name', $_GET['ini'], time()+2592000, '/');
+        to_log('Ini-file changed on <b>'.$ini_file.'</b>');
         header('Location: deploy.php');
         exit();
     }
