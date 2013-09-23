@@ -1,14 +1,28 @@
 deploy
 ======
-Simple deploys web-sites from local computer to ftp server
+Simple deploys web-sites from local computer to ftp-server
 
-##Russian
+### Description
 
-Поддерживает деплой с локальной windows машины на фтп-север по протоколу FTP (не поддерживает sFTP).
+### Structure
 
-- deploy.php - основной рабочий файл
+- deploy.php - main working script
+- deploy.ini - configuration file which contains list of configuration files separate web-projects
+- deploy_example.ini - example of configuration file web-site or web-project
+
+## Russian
+======
+
+### Описание
+
+Поддерживает деплой с локальной windows машины на FTP-север (не поддерживает sFTP).
+Подойдет для разработчиков-одиночек, кто разработывает на локальной машине и выгружает на продашн сервер по ftp.
+
+### Структура
+
+- deploy.php - основной рабочий скрипт
 - deploy.ini - файл конфигурации, который содержит список файлов конфигурации отдельных проектов
-- deploy_example.ini - файл конфигурации веб-сайта или проекта
+- deploy_example.ini - пример файла конфигурации веб-сайта или проекта
 
 ### Установка
 
