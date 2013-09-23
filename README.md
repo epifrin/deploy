@@ -11,7 +11,6 @@ Simple deploys web-sites from local computer to ftp-server
 - deploy_example.ini - example of configuration file web-site or web-project
 
 ## Russian
-======
 
 ### Описание
 
