@@ -4,7 +4,7 @@
 * 
 */
 ini_set("max_execution_time","120");
-session_start();     
+session_start();      
 
 $main_ini_file = 'deploy.ini'; // site or project ini file
 
@@ -419,15 +419,19 @@ function add_file_to_arr($arr_local_files, $dir, $file){
 */
 function ftp_conn($arr_ini){
     global $conn_id;
-    if(!empty($arr_ini['ftp']['ftp_host']) && !empty($arr_ini['ftp']['ftp_user']) && !empty($arr_ini['ftp']['ftp_pass'])){
-    $conn_id = ftp_connect($arr_ini['ftp']['ftp_host'], $arr_ini['ftp']['ftp_port']);
-    if($conn_id) $login_result = ftp_login($conn_id, $arr_ini['ftp']['ftp_user'], $arr_ini['ftp']['ftp_pass']);
-        if ((!$conn_id) || (!$login_result)) {
-            to_log('Unable to connect to FTP-server!', true);
-            to_log('Trying to connect to server <b>'.$arr_ini['ftp']['ftp_host'].'</b> was produced under the name of '.$arr_ini['ftp']['ftp_user'].'</b>', true);
 
-        } else {
-            //to_log('The connection to the FTP server <b>'.$arr_ini['ftp']['ftp_host'].'</b> under the name of <b>'.$arr_ini['ftp']['ftp_user'].'</b>');
+    if(!$conn_id){
+        if(!empty($arr_ini['ftp']['ftp_host']) && !empty($arr_ini['ftp']['ftp_user']) && !empty($arr_ini['ftp']['ftp_pass'])){
+        $conn_id = ftp_connect($arr_ini['ftp']['ftp_host'], $arr_ini['ftp']['ftp_port']);
+        if($conn_id) $login_result = ftp_login($conn_id, $arr_ini['ftp']['ftp_user'], $arr_ini['ftp']['ftp_pass']);
+            if ((!$conn_id) || (!$login_result)) {
+                to_log('Unable to connect to FTP-server!', true);
+                to_log('Trying to connect to server <b>'.$arr_ini['ftp']['ftp_host'].'</b> was produced under the name of '.$arr_ini['ftp']['ftp_user'].'</b>', true);
+
+            } else {
+                $_SESSION['conn_id'] = $conn_id;
+                //to_log('The connection to the FTP server <b>'.$arr_ini['ftp']['ftp_host'].'</b> under the name of <b>'.$arr_ini['ftp']['ftp_user'].'</b>');
+            }
         }
     }
 }
