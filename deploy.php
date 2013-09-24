@@ -1,6 +1,6 @@
 <?php
 /**
-* Script for deploying web-site by ftp
+* Script for deploying web-sites to ftp server
 * 
 */
 ini_set("max_execution_time","120");
@@ -76,6 +76,8 @@ if(!empty($_GET['clear_log'])){
     exit();
 }
 
+
+
 if($conn_id){
     // multiple download or upload
     if(!empty($_POST['atype'])){
@@ -113,7 +115,7 @@ if($conn_id){
                 header('Location: deploy.php');
                 exit(); 
             }else{
-                to_log('Failed to download the file <b>'.$_GET['download'].'</b>');
+                to_log('Failed to download the file <b>'.$_GET['download'].'</b>', true);
             }
         }
     }
@@ -146,6 +148,39 @@ if($conn_id){
             
         }
     }
+    
+    // compare files
+    if(!empty($_GET['compare'])){
+        if(file_exists($arr_ini['deployment']['local_site_dir'].$_GET['compare'])){
+            $local_file = $_GET['compare'];
+            $local_content = file_get_contents($arr_ini['deployment']['local_site_dir'].$_GET['compare']);
+            $remote_content = '';
+            $ftp_temp_file = sys_get_temp_dir().DIRECTORY_SEPARATOR.basename($local_file);
+            if(is_writable(sys_get_temp_dir())){
+                @ftp_get($conn_id, $ftp_temp_file, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$local_file), FTP_BINARY);
+                if(file_exists($ftp_temp_file)){
+                     $remote_content = file_get_contents($ftp_temp_file);
+                     /*
+                     $arr_local_content = explode("\n", $local_content);
+                     $arr_remote_content = explode("\n", $remote_content);
+                     
+                     $i = 0; $arr_compare = array();
+                     foreach($arr_local_content AS $val){
+                         $arr_compare[$i] = 0;
+                         if($arr_local_content[$i] != $arr_remote_content[$i]) $arr_compare[$i+1] = 1;
+                         $i++;
+                     }
+                     */
+                }else{
+                     p('Temporary file '.$ftp_temp_file.' does not exist');
+                }
+            }else{
+                to_log('System temporary folder '.sys_get_temp_dir().' is not writable', true);
+                header('Location: deploy.php');
+                exit();
+            }
+        }
+    }
 }
 
 $arr_local_files = get_arr_local_files($arr_ini); // get array of files
@@ -172,6 +207,7 @@ if($conn_id){
 if($conn_id) ftp_close($conn_id);
 
 ?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
 <html>
 <head>
     <title>Deploy</title>
@@ -206,6 +242,12 @@ if($conn_id) ftp_close($conn_id);
     .tr_bg_red {
         background-color: #FFDDDE;
     }
+    .t_compare {
+        border-collapse: collapse;
+    }
+    .t_compare td {
+        border: 1px solid #CCC;
+    }
     .light_gray {
         background-color:#EFEFEF;
     }
@@ -215,6 +257,28 @@ if($conn_id) ftp_close($conn_id);
         font-size: 12px;
     }
 </style>
+<?php
+    if(!empty($_GET['compare']) && isset($local_file)){
+?>
+
+<div>
+    <p><b><?=$local_file?></b></p>
+    <div>
+        <table style="width:1200px;" class="t_compare">
+        <tr>
+            <td valign="top"><div style="width:595px;overflow-x:scroll;"><pre><?=htmlspecialchars($local_content);?></pre></div></td> 
+            <td class="light_gray" style="width:auto;">&nbsp;</td>
+            <td valign="top"><div style="width:595px;overflow-x:scroll;"><pre><?=htmlspecialchars($remote_content);?></pre></div></td>
+        </tr>
+        </table>
+    </div>
+</div>
+
+<?php        
+    }else{
+?>
+
+
 <table>
 <tr>
     <td>
@@ -266,7 +330,7 @@ if($conn_id) ftp_close($conn_id);
             if(!$show_only_no_equal || ($show_only_no_equal && !$arr_f['equal'])){ ?>
             <tr <?php if(!$arr_f['equal']){ ?>class="tr_bg_red" <?php } ?> >
                 <td><input type="checkbox" name="files[]" value="<?=$file;?>" <?php if(!$arr_f['equal']){ ?> checked="checked" <?php } ?> ></td>
-                <td><?=$file;?></td>
+                <td><a href="?compare=<?=urlencode($file);?>"><?=$file;?></a></td>
                 <td><?=date('H:i:s d.m.Y', $arr_f['fdate']);?></td>
                 <td align="right"><?=$arr_f['fsize'];?></td>
                 <td align="center"><?php if($arr_f['equal']){ echo '=';}else{echo '<span class="red">!=</span>';}  ?></td>
@@ -302,6 +366,7 @@ if($conn_id) ftp_close($conn_id);
     </td>
 </tr>
 </table>
+<?php } ?>
 <script>
 function btn_click(atype){
     document.form_file_list['atype'].value = atype;
