@@ -5,6 +5,7 @@
 */
 ini_set("max_execution_time","120");
 session_start();      
+setlocale(LC_ALL, 'ru_RU');
 
 $main_ini_file = 'deploy.ini'; // main ini file
 
@@ -168,8 +169,9 @@ if(!empty($_GET['compare'])){
     if(file_exists($arr_ini['deployment']['local_site_dir'].$_GET['compare'])){
         $local_file = $_GET['compare'];
         $local_content = file_get_contents($arr_ini['deployment']['local_site_dir'].$_GET['compare']);
-        $remote_content = '';
+         
         
+        $remote_content = '';
         if($remote_site_dir){
             $remote_content = file_get_contents($remote_site_dir.$_GET['compare']);
         }else{
@@ -183,7 +185,14 @@ if(!empty($_GET['compare'])){
             }
         }
         
+        if(!empty($arr_ini['common']['charset']) && strtoupper($arr_ini['common']['charset']) != 'UTF-8'){
+            $local_content = iconv($arr_ini['common']['charset'], 'UTF-8//IGNORE', $local_content);
+            $remote_content = iconv($arr_ini['common']['charset'], 'UTF-8//IGNORE', $remote_content);
+        }
+        
         if($remote_content){
+            
+            
             //@ftp_get($conn_id, $ftp_temp_file, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$local_file), FTP_BINARY);
             //if(file_exists($ftp_temp_file)){
                  //$remote_content = file_get_contents($ftp_temp_file);
@@ -235,7 +244,7 @@ if(empty($_SESSION['arr_local_files']) || !is_array($_SESSION['arr_local_files']
                 $ftp_fsize = ftp_size($conn_id, $ftp_file);
                 if($ftp_fsize > -1){
                     $arr_local_files[$file]['ftp_fsize'] = $ftp_fsize;
-                    $arr_local_files[$file]['ftp_fdate'] = ftp_mdtm($conn_id, $ftp_file);
+                    $arr_local_files[$file]['ftp_fdate'] = gmdate('H:i:s d.m.Y',ftp_mdtm($conn_id, $ftp_file));//strftime('%H:%M:%S %d.%m.%Y', ftp_mdtm($conn_id, $ftp_file));
                     if($val['fsize'] == $ftp_fsize) $arr_local_files[$file]['equal'] = true;
                 }
             }
@@ -254,6 +263,7 @@ if($conn_id) ftp_close($conn_id);
 <html>
 <head>
     <title>Deploy</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <?php get_css(); ?>
 </head>
 <body>
@@ -302,6 +312,7 @@ if(!empty($_GET['compare']) && isset($local_file)){
         </tr>
         </table>
     </td>
+    <td>&nbsp;</td>
     <td valign="bottom"><input type="button" value="clear log" onclick="btn_clear_log();"></td>
 </tr>
 <tr>
@@ -334,11 +345,11 @@ if(!empty($_GET['compare']) && isset($local_file)){
             <tr <?php if(!$arr_f['equal']){ ?>class="tr_bg_red" <?php } ?> >
                 <td><input type="checkbox" name="files[]" value="<?=$file;?>" <?php if(!$arr_f['equal']){ ?> checked="checked" <?php } ?> ></td>
                 <td><a href="?compare=<?=urlencode($file);?>"><?=$file;?></a></td>
-                <td><?=date('H:i:s d.m.Y', $arr_f['fdate']);?></td>
+                <td><?=$arr_f['fdate']?></td>
                 <td align="right"><?=$arr_f['fsize'];?></td>
                 <td align="center"><?php if($arr_f['equal']){ echo '=';}else{echo '<span class="red">!=</span>';}  ?></td>
                 <td align="right" class="light_gray"><?=$arr_f['ftp_fsize'];?></td>
-                <td class="light_gray"><?php if(!empty($arr_f['ftp_fdate'])){ echo date('H:i:s d.m.Y', $arr_f['ftp_fdate']); }?></td>
+                <td class="light_gray"><?php if(!empty($arr_f['ftp_fdate'])){ echo $arr_f['ftp_fdate']; }?></td>
                 <td><?php if(!$arr_f['equal'] && $arr_f['ftp_fsize'] > 0){ ?> 
                     <input type="button" value="Download" class="btn" onclick="window.location.href='?download=<?=urlencode($file);?>'"> 
                     <?php } ?>
@@ -360,10 +371,12 @@ if(!empty($_GET['compare']) && isset($local_file)){
         <?php } 
         ?>
         </table>
+        <p><label><input type="checkbox" id="checked_all" onclick="checkuncheck();" checked="checked"> All checked/unchecked</label></p>
         <p><input type="button" value="Download all checked" class="btn" onclick="btn_click('download');"> 
             <input type="button" value="Upload all checked" class="btn" onclick="btn_click('upload');"></p>
         </form>
     </td>
+    <td>&nbsp;</td>
     <td class="tab_log" valign="top">
         <?php if(!empty($_SESSION['logs'])) echo $_SESSION['logs']; ?>
     </td>
@@ -388,6 +401,25 @@ function btn_rescan(){
 }
 function btn_clear_log(){
     window.location.href = 'deploy.php?clear_log=1';
+}
+function checkuncheck(){
+    var el_checked = document.getElementById('checked_all');
+    var form_file_list = document.form_file_list;
+    if(el_checked.checked){
+        for(var i = 0; i < form_file_list.elements.length; i++){ 
+            el = form_file_list.elements[i]; 
+            if(el.type == 'checkbox'){
+                el.checked = 'checked';
+            }
+        }
+    }else{
+        for(var i = 0; i < form_file_list.elements.length; i++){ 
+            el = form_file_list.elements[i]; 
+            if(el.type == 'checkbox'){
+                el.checked = false;
+            }
+        }
+    }
 }
 </script>
 </body>
@@ -437,6 +469,11 @@ function check_ini_file($main_ini_file){
     
     if(empty($arr_ini['deployment']['local_site_dir'])){
         exit('Ini file does not contain parameter [local_site_dir] in section [deployment]');
+    }
+    
+    if(substr($arr_ini['deployment']['local_site_dir'],-1,1) != DIRECTORY_SEPARATOR) $arr_ini['deployment']['local_site_dir'] .= DIRECTORY_SEPARATOR;
+    if(!is_dir($arr_ini['deployment']['local_site_dir'])){
+        exit('Directory [local_site_dir] does not exist!');
     }
 }
 
@@ -522,7 +559,7 @@ function get_files_tree($arr_local_files, $dir){
 function add_file_to_arr($arr_local_files, $dir, $file){
     global $arr_ini;
     $arr_local_files[$dir.$file] = array('fsize' => filesize($arr_ini['deployment']['local_site_dir'].$dir.$file), 
-            'fdate' => filemtime($arr_ini['deployment']['local_site_dir'].$dir.$file), 
+            'fdate' => date('H:i:s d.m.Y', filemtime($arr_ini['deployment']['local_site_dir'].$dir.$file)), 
             'ftp_fsize'=>'', 
             'ftp_fdate'=>'', 
             'equal'=>false); 
