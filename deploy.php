@@ -453,9 +453,10 @@ function get_arr_local_files($arr_ini){
     $arr_inc_files = explode("\n", $arr_ini['deployment']['include_files']);
     $local_chdir = $arr_ini['deployment']['local_site_dir'];
     foreach($arr_inc_files AS $str){
-        if(!empty($str)){
-            if(strpos($str,'*') !== false){
-                if($str == '*'){
+        $str = trim($str);
+        if(!empty($str)){      
+            if(strpos($str,'*') !== false){  
+                if($str == '*'){     
                     get_files_tree(&$arr_local_files, '');
                     break;
                 }else{
@@ -475,6 +476,7 @@ function get_arr_local_files($arr_ini){
     // exclude files
     $arr_exc_files = explode("\n", $arr_ini['deployment']['exclude_files']);
     foreach($arr_exc_files AS $exc_file){
+        $exc_file = trim($exc_file);
         if(!empty($exc_file)){
             if(is_file($local_chdir.$exc_file)){
                 unset($arr_local_files[$exc_file]);
@@ -503,7 +505,7 @@ function get_files_tree($arr_local_files, $dir){
     global $arr_ini;
     $local_chdir = $arr_ini['deployment']['local_site_dir'];  
     if(is_dir($local_chdir.$dir)){    
-        $arr_list = scandir($local_chdir.$dir);
+        $arr_list = scandir($local_chdir.$dir);   
         foreach($arr_list AS $val){    
             if(is_file($local_chdir.$dir.$val)){
                 add_file_to_arr(&$arr_local_files, $dir, $val);
