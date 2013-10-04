@@ -231,7 +231,7 @@ if(empty($_SESSION['arr_local_files']) || !is_array($_SESSION['arr_local_files']
                 $remote_file_size = filesize($remote_site_dir.$file);
                 if($remote_file_size !== false){
                     $arr_local_files[$file]['ftp_fsize'] = $remote_file_size;
-                    $arr_local_files[$file]['ftp_fdate'] = filemtime($remote_site_dir.$file);
+                    $arr_local_files[$file]['ftp_fdate'] = date('H:i:s d.m.Y', filemtime($remote_site_dir.$file));
                     if($val['fsize'] == $remote_file_size) $arr_local_files[$file]['equal'] = true;
                 }
             }
