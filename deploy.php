@@ -575,7 +575,7 @@ function ftp_conn($arr_ini_ftp){
 
     if(!$conn_id){
         if(!empty($arr_ini_ftp['ftp_host']) && !empty($arr_ini_ftp['ftp_user']) && !empty($arr_ini_ftp['ftp_pass'])){
-        $conn_id = ftp_connect($arr_ini_ftp['ftp_host'], $arr_ini_ftp['ftp_port']);
+        $conn_id = ftp_connect($arr_ini_ftp['ftp_host'], $arr_ini_ftp['ftp_port'], 30);
         if($conn_id) $login_result = ftp_login($conn_id, $arr_ini_ftp['ftp_user'], $arr_ini_ftp['ftp_pass']);
             if ( $conn_id && $login_result ){
                 ftp_pasv($conn_id, true);
