@@ -7,57 +7,22 @@ ini_set("max_execution_time","120");
 session_start();      
 setlocale(LC_ALL, 'ru_RU');
 
-$main_ini_file = 'deploy.ini'; // main ini file
+// Global variables
+$main_ini_file = 'deploy.ini';  // main ini file
+$arr_ini = '';                  // ini file of web project
+$ini_file = '';                 // ini file name of web project
+$arr_ini_list = '';             // list of all ini files web projects
+$conn_id = false;               // global identifier of ftp connection
+$remote_site_dir = '';          // if using local machine
+$show_only_no_equal = false;    // 
 
-$arr_ini = ''; $ini_file = ''; $arr_ini_list = '';
-check_ini_file($main_ini_file);
+check_ini_file($main_ini_file); // checks structure of ini file
 
+ftp_conn($arr_ini['ftp']);      // connects to ftp server if it is necessary
 
-$remote_site_dir = '';
-if(!empty($arr_ini['local-server']['remote_site_dir'])){
-    if(is_dir($arr_ini['local-server']['remote_site_dir'])){
-        $remote_site_dir = $arr_ini['local-server']['remote_site_dir'];
-    }else{
-        exit('Remote directory does not exist');
-    }
-}
-
-$conn_id = false;
-if(!$remote_site_dir){
-    ftp_conn($arr_ini['ftp']);
-    if(!$conn_id) exit('Unable to connect to FTP-server!'); 
-} 
-
-
-
-// checkbox "Show only not equal files"
-if(isset($_GET['show_only_not_equal'])){
-    if(!empty($_GET['show_only_not_equal'])){
-        setcookie('deploy_show_only_not_equal', 1, time()+2592000, '/');
-    }else{
-        setcookie('deploy_show_only_not_equal', '', time()-1, '/');
-    }
-    header('Location: deploy.php');
-    exit();
-}
-$show_only_no_equal = false;
-if(!empty($_COOKIE['deploy_show_only_not_equal'])){
-    $show_only_no_equal = true; 
-}
-
-if(!empty($_GET['rescan'])){
-    $_SESSION['arr_local_files'] = '';
-    header('Location: deploy.php');
-    exit();
-}
-
-if(!empty($_GET['clear_log'])){
-    $_SESSION['logs'] = '';
-    header('Location: deploy.php');
-    exit();
-}
-
-
+show_only_no_equal_files();     // checkbox "Show only not equal files"
+rescan();                       // Button Rescan
+clear_log();                    // Button Clear log
 
 
 // multiple download or upload
@@ -66,31 +31,23 @@ if(!empty($_POST['atype'])){
         foreach($_POST['files'] AS $file){
             if(is_file($arr_ini['deployment']['local_site_dir'].$file)){
                 if($_POST['atype'] == 'download'){
-                    if($remote_site_dir){
-                        $action_result = copy($remote_site_dir.$file, $arr_ini['deployment']['local_site_dir'].$file);
-                    }else{
-                        ob_start();
-                        $action_result = @ftp_get($conn_id, "php://output", $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$file), FTP_BINARY);
-                        if($action_result) file_put_contents($arr_ini['deployment']['local_site_dir'].$file, ob_get_contents());
-                        ob_end_clean();
-                    }
+                    
+                    $action_result = download_file($file, $remote_site_dir, $arr_ini, $conn_id);
                     if( $action_result ){
                         to_log('File <b>'.$file.'</b> was successfully downloaded');    
                     }else{
-                        to_log('Unable to download file <b>'.$file.'</b>');
+                        to_log('Unable to download file <b>'.$file.'</b>', true);
+                        break;
                     }
                     
                 }elseif($_POST['atype'] == 'upload'){
                     
-                    if($remote_site_dir){
-                        $action_result = copy($arr_ini['deployment']['local_site_dir'].$file, $remote_site_dir.$file);
-                    }else{
-                        $action_result = ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$file), $arr_ini['deployment']['local_site_dir'].$file, FTP_BINARY);
-                    }
+                    $action_result = upload_file($file, $remote_site_dir, $arr_ini, $conn_id);
                     if( $action_result ){
                         to_log('File <b>'.$file.'</b> was successfully uploaded');
                     }else{
-                        to_log('Unable to upload file <b>'.$file.'</b>');
+                        to_log('Unable to upload file <b>'.$file.'</b>', true);
+                        break;
                     }
                 }
             }
@@ -104,14 +61,8 @@ if(!empty($_POST['atype'])){
 // single download
 if(!empty($_GET['download'])){
     if(is_file($arr_ini['deployment']['local_site_dir'].$_GET['download'])){
-        if($remote_site_dir){
-            $action_result = copy($remote_site_dir.$_GET['download'], $arr_ini['deployment']['local_site_dir'].$_GET['download']);
-        }else{
-            ob_start();
-            $action_result = @ftp_get($conn_id, "php://output", $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['download']), FTP_BINARY);
-            if($action_result) file_put_contents($arr_ini['deployment']['local_site_dir'].$_GET['download'], ob_get_contents());
-            ob_end_clean();
-        }
+        
+        $action_result = download_file($_GET['download'], $remote_site_dir, $arr_ini, $conn_id);
         if( $action_result ){
             to_log('File <b>'.$_GET['download'].'</b> was successfully downloaded');
             $_SESSION['arr_local_files'] = '';
@@ -126,11 +77,9 @@ if(!empty($_GET['download'])){
 // single upload
 if(!empty($_GET['upload'])){
     if(is_file($arr_ini['deployment']['local_site_dir'].$_GET['upload'])){
-        if($remote_site_dir){
-            $action_result = copy($arr_ini['deployment']['local_site_dir'].$_GET['upload'], $remote_site_dir.$_GET['upload']);
-        }else{
-            $action_result = ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['upload']), $arr_ini['deployment']['local_site_dir'].$_GET['upload'], FTP_BINARY);
-        }
+        
+        $action_result = upload_file($_GET['upload'], $remote_site_dir, $arr_ini, $conn_id);
+
         if( $action_result ){
             to_log('File <b>'.$_GET['upload'].'</b> was successfully uploaded');
             $_SESSION['arr_local_files'] = '';
@@ -144,13 +93,15 @@ if(!empty($_GET['upload'])){
 
 // delete from ftp
 if(!empty($_GET['delete'])){
-    if($remote_site_dir){
+    if($remote_site_dir){  // local machine
         $action_result = unlink($remote_site_dir.$_GET['delete']);
-    }else{
-        if(ftp_size($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete'])) > -1){
-            $action_result = ftp_delete($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete']));
-        }else{
-            $action_result = false;
+    }else{ // ftp server
+        if($conn_id){
+            if(ftp_size($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete'])) > -1){
+                $action_result = ftp_delete($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$_GET['delete']));
+            }else{
+                $action_result = false;
+            }
         }
     }
     
@@ -219,13 +170,10 @@ if(!empty($_GET['compare'])){
 
 $arr_local_files = get_arr_local_files($arr_ini); // get array of files
 
-    
-
-
 
     
 if(empty($_SESSION['arr_local_files']) || !is_array($_SESSION['arr_local_files'])){
-    if($remote_site_dir){
+    if($remote_site_dir){ // local machine
         foreach($arr_local_files AS $file=>$val){
             if(file_exists($remote_site_dir.$file)){
                 $remote_file_size = filesize($remote_site_dir.$file);
@@ -236,7 +184,7 @@ if(empty($_SESSION['arr_local_files']) || !is_array($_SESSION['arr_local_files']
                 }
             }
         }
-    }else{
+    }else{  // ftp server
         
         if($conn_id){
             foreach($arr_local_files AS $file=>$val){
@@ -252,11 +200,6 @@ if(empty($_SESSION['arr_local_files']) || !is_array($_SESSION['arr_local_files']
         }
     }
 }
-
-
-
-// close connection
-if($conn_id) ftp_close($conn_id);
 
 ?>
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
@@ -291,7 +234,6 @@ if(!empty($_GET['compare']) && isset($local_file)){
 }else{
 ?>
 
-
 <table>
 <tr>
     <td>
@@ -307,13 +249,13 @@ if(!empty($_GET['compare']) && isset($local_file)){
             </form></td>
         </tr>
         <tr>
-            <td><input type="button" value="rescan" onclick="btn_rescan();"></td>
+            <td><input type="button" value="Rescan" onclick="btn_rescan();"></td>
             <td align="right"><label><input type="checkbox" id="show_only_not_equal" name="show_only_not_equal" value="1" <?php if($show_only_no_equal){ ?> checked="checked"<?php } ?> onchange="change_show_only_not_equal();"> Show only not equal files</label></td>
         </tr>
         </table>
     </td>
     <td>&nbsp;</td>
-    <td valign="bottom"><input type="button" value="clear log" onclick="btn_clear_log();"></td>
+    <td valign="bottom"><input type="button" value="Clear log" onclick="btn_clear_log();"></td>
 </tr>
 <tr>
     <td valign="top">
@@ -365,9 +307,9 @@ if(!empty($_GET['compare']) && isset($local_file)){
             </tr>
         <?php }}
         }else{ ?>
-        <tr>
-            <td colspan="6">There is no local files</td>
-        </tr>    
+            <tr>
+                <td colspan="6">There is no local files or some error occurred</td>
+            </tr>    
         <?php } 
         ?>
         </table>
@@ -426,10 +368,13 @@ function checkuncheck(){
 </html>
 <?php       
 
+// close connection
+if($conn_id) ftp_close($conn_id);
+
 ############# Functions ##############
 
 function check_ini_file($main_ini_file){
-    global $arr_ini, $ini_file, $arr_ini_list;
+    global $arr_ini, $ini_file, $arr_ini_list, $remote_site_dir;
     if(!is_file($main_ini_file)) exit('Ini-file <b>'.$main_ini_file.'</b> not found');
     
     $arr_main_ini = parse_ini_file($main_ini_file, true);
@@ -460,7 +405,7 @@ function check_ini_file($main_ini_file){
     $arr_ini = parse_ini_file($ini_file, true);
 
     if(!$arr_ini){
-        exit('Error occured with ini file '.$ini_file);
+        to_log('Error occured with ini file '.$ini_file, true);
     }
 
     if(!empty($arr_ini['security']['allow_ip']) && strpos($arr_ini['security']['allow_ip'], $_SERVER['REMOTE_ADDR']) === false ){
@@ -468,13 +413,52 @@ function check_ini_file($main_ini_file){
     }
     
     if(empty($arr_ini['deployment']['local_site_dir'])){
-        exit('Ini file does not contain parameter [local_site_dir] in section [deployment]');
+        to_log('Ini file does not contain parameter [local_site_dir] in section [deployment]', true);
     }
     
     if(substr($arr_ini['deployment']['local_site_dir'],-1,1) != DIRECTORY_SEPARATOR) $arr_ini['deployment']['local_site_dir'] .= DIRECTORY_SEPARATOR;
     if(!is_dir($arr_ini['deployment']['local_site_dir'])){
-        exit('Directory [local_site_dir] does not exist!');
+        to_log('Directory [local_site_dir] does not exist!', true);
     }
+    
+    if(!empty($arr_ini['local-server']['remote_site_dir'])){
+        if(is_dir($arr_ini['local-server']['remote_site_dir'])){
+            $remote_site_dir = $arr_ini['local-server']['remote_site_dir'];
+        }else{
+            to_log('Remote directory '.$arr_ini['local-server']['remote_site_dir'].' does not exist', true);
+        }
+    }
+}
+
+/**
+* download file
+*/
+function download_file($filename, $remote_site_dir, $arr_ini, $conn_id){
+    if($remote_site_dir){  // local machine
+        $action_result = copy($remote_site_dir.$filename, $arr_ini['deployment']['local_site_dir'].$filename);
+    }else{
+        $action_result = false;
+        if($conn_id){
+            ob_start();
+            $action_result = @ftp_get($conn_id, "php://output", $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$filename), FTP_BINARY);
+            if($action_result) file_put_contents($arr_ini['deployment']['local_site_dir'].$filename, ob_get_contents());
+            ob_end_clean();
+        }
+    }
+    return $action_result;
+}
+
+/**
+* upload file
+*/
+function upload_file($filename, $remote_site_dir, $arr_ini, $conn_id){
+    if($remote_site_dir){ // local machine
+        $action_result = copy($arr_ini['deployment']['local_site_dir'].$filename, $remote_site_dir.$filename);
+    }else{ // ftp server
+        $action_result = false;
+        if($conn_id) $action_result = ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$filename), $arr_ini['deployment']['local_site_dir'].$filename, FTP_BINARY);
+    }
+    return $action_result;
 }
 
 /**
@@ -571,9 +555,9 @@ function add_file_to_arr($arr_local_files, $dir, $file){
 * @param array $arr_ini - array of settings
 */
 function ftp_conn($arr_ini_ftp){
-    global $conn_id;
+    global $conn_id, $remote_site_dir;
 
-    if(!$conn_id){
+    if(!$conn_id && !$remote_site_dir){
         if(!empty($arr_ini_ftp['ftp_host']) && !empty($arr_ini_ftp['ftp_user']) && !empty($arr_ini_ftp['ftp_pass'])){
         $conn_id = ftp_connect($arr_ini_ftp['ftp_host'], $arr_ini_ftp['ftp_port'], 30);
         if($conn_id) $login_result = ftp_login($conn_id, $arr_ini_ftp['ftp_user'], $arr_ini_ftp['ftp_pass']);
@@ -587,6 +571,49 @@ function ftp_conn($arr_ini_ftp){
                 to_log('Trying to connect to server <b>'.$arr_ini_ftp['ftp_host'].'</b> was produced under the name of '.$arr_ini_ftp['ftp_user'].'</b>', true);
             }
         }
+    }
+}
+
+/**
+* rescan
+*/
+function rescan(){
+    if(!empty($_GET['rescan'])){
+        $_SESSION['arr_local_files'] = '';
+        header('Location: deploy.php');
+        exit();
+    }    
+}
+
+/**
+* clear log
+* 
+*/
+function clear_log(){
+    if(!empty($_GET['clear_log'])){
+        $_SESSION['logs'] = '';
+        header('Location: deploy.php');
+        exit();
+    }
+}
+
+/**
+* Handler for action show only not equal files
+*/
+function show_only_no_equal_files(){
+    global $show_only_no_equal;
+    if(isset($_GET['show_only_not_equal'])){
+        if(!empty($_GET['show_only_not_equal'])){
+            setcookie('deploy_show_only_not_equal', 1, time()+2592000, '/');
+        }else{
+            setcookie('deploy_show_only_not_equal', '', time()-1, '/');
+        }
+        header('Location: deploy.php');
+        exit();
+    }
+
+    if(!empty($_COOKIE['deploy_show_only_not_equal'])){
+        $show_only_no_equal = true; 
     }
 }
 
