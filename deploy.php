@@ -2,7 +2,9 @@
 /**
 * Script for deploying web-sites to ftp server
 * 
+* @author Yuriy Panas
 */
+
 ini_set("max_execution_time","120");
 session_start();      
 setlocale(LC_ALL, 'ru_RU');
@@ -296,10 +298,7 @@ if(!empty($_GET['compare']) && isset($local_file)){
                     <input type="button" value="Download" class="btn" onclick="window.location.href='?download=<?=urlencode($file);?>'"> 
                     <?php } ?>
                 </td>
-                <td><?php if(!$arr_f['equal']){ ?> 
-                    <input type="button" value="Upload" class="btn" onclick="window.location.href='?upload=<?=urlencode($file);?>'"> 
-                    <?php } ?>
-                </td>
+                <td><input type="button" value="Upload" class="btn" onclick="window.location.href='?upload=<?=urlencode($file);?>'"></td>
                 <td><?php if($arr_f['ftp_fsize'] > 0){ ?> 
                     <input type="button" value="Delete" class="btn" onclick="if(confirm('Are you sure?')) window.location.href='?delete=<?=urlencode($file);?>'">
                     <?php } ?>
