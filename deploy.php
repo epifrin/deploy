@@ -1,8 +1,8 @@
 <?php
 /**
-* Script for deploying web-sites to ftp server
+* Script for deploying files to ftp server
 * 
-* @author Yuriy Panas
+* @author Epifrin
 */
 
 ini_set("max_execution_time","120");
@@ -22,7 +22,7 @@ check_ini_file($main_ini_file); // checks structure of ini file
 
 ftp_conn($arr_ini['ftp']);      // connects to ftp server if it is necessary
 
-show_only_no_equal_files();     // checkbox "Show only not equal files"
+show_only_not_equal_files();     // checkbox "Show only not equal files"
 rescan();                       // Button Rescan
 clear_log();                    // Button Clear log
 
@@ -455,7 +455,12 @@ function upload_file($filename, $remote_site_dir, $arr_ini, $conn_id){
         $action_result = copy($arr_ini['deployment']['local_site_dir'].$filename, $remote_site_dir.$filename);
     }else{ // ftp server
         $action_result = false;
-        if($conn_id) $action_result = ftp_put($conn_id, $arr_ini['ftp']['ftp_remote_dir'].str_replace('\\','/',$filename), $arr_ini['deployment']['local_site_dir'].$filename, FTP_BINARY);
+        if($conn_id) {
+            $action_result = ftp_put($conn_id,
+                $arr_ini['ftp']['ftp_remote_dir'] . str_replace('\\', '/', $filename),
+                $arr_ini['deployment']['local_site_dir'] . $filename,
+                FTP_BINARY);
+        }
     }
     return $action_result;
 }
@@ -477,18 +482,18 @@ function get_arr_local_files($arr_ini){
         if(!empty($str)){      
             if(strpos($str,'*') !== false){  
                 if($str == '*'){     
-                    get_files_tree(&$arr_local_files, '');
+                    get_files_tree($arr_local_files, '');
                     break;
                 }else{
                     if(preg_match("|^(.+)\\*$|s", $str, $res)){
                         if(is_dir($local_chdir.$res[1])){  
-                            get_files_tree(&$arr_local_files, $res[1]);
+                            get_files_tree($arr_local_files, $res[1]);
                         }
                     }
                 }
                 
             }elseif(is_file($local_chdir.$str)){
-                add_file_to_arr(&$arr_local_files, '', $str);
+                add_file_to_arr($arr_local_files, '', $str);
             }
         }
     }
@@ -521,25 +526,25 @@ function get_arr_local_files($arr_ini){
     return $arr_local_files;
 }
 
-function get_files_tree($arr_local_files, $dir){
+function get_files_tree(&$arr_local_files, $dir){
     global $arr_ini;
     $local_chdir = $arr_ini['deployment']['local_site_dir'];  
     if(is_dir($local_chdir.$dir)){    
         $arr_list = scandir($local_chdir.$dir);   
         foreach($arr_list AS $val){    
             if(is_file($local_chdir.$dir.$val)){
-                add_file_to_arr(&$arr_local_files, $dir, $val);
+                add_file_to_arr($arr_local_files, $dir, $val);
             }
             elseif($val != '.' && $val != '..' && is_dir($local_chdir.$dir.$val)){  
                 
-                get_files_tree(&$arr_local_files, $dir.$val.DIRECTORY_SEPARATOR);
+                get_files_tree($arr_local_files, $dir.$val.DIRECTORY_SEPARATOR);
             }
         }
     }
     return true;
 }
 
-function add_file_to_arr($arr_local_files, $dir, $file){
+function add_file_to_arr(&$arr_local_files, $dir, $file){
     global $arr_ini;
     $arr_local_files[$dir.$file] = array('fsize' => filesize($arr_ini['deployment']['local_site_dir'].$dir.$file), 
             'fdate' => date('H:i:s d.m.Y', filemtime($arr_ini['deployment']['local_site_dir'].$dir.$file)), 
@@ -599,7 +604,7 @@ function clear_log(){
 /**
 * Handler for action show only not equal files
 */
-function show_only_no_equal_files(){
+function show_only_not_equal_files(){
     global $show_only_no_equal;
     if(isset($_GET['show_only_not_equal'])){
         if(!empty($_GET['show_only_not_equal'])){
